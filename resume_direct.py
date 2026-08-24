@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-简历转换工具 —— 直接生成版（无需 word 模板 / 配置 excel）
+ResumeForge —— 直接生成模式（无需 word 模板 / 配置 excel）
 
-与模板版（简历转换工具-解决附件图片后缀重复问题.py）的差别：
+与模板版（resume_converter.py）的差别：
     模板版：原始数据表 + word模板 + 配置excel 三件套 -> docxtpl 渲染
     直接版：仅原始数据表 -> python-docx 程序化排版生成同样式 docx
 对应关系全部内置在下方常量区；排版复刻原模板实测结构：
@@ -72,8 +72,8 @@ PROMISE_PARAS = [
     '收取过报名费、安置费、培训费等任何费用。',
 ]
 
-# 复用主模块的文件查找与方向摆正（模块名含中文/连字符，按名导入）
-_main = import_module('简历转换工具-解决附件图片后缀重复问题')
+# 复用主模块的文件查找与方向摆正
+_main = import_module('resume_converter')
 find_files = _main.find_files
 make_upright = _main.make_upright
 

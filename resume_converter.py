@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-简历批量生成工具（excel 简历汇总表 -> word 简历）
-由 notebook「简历转换工具-解决附件图片后缀重复问题.ipynb」原样转换而来，
+ResumeForge 简历批量生成工具（excel 简历汇总表 -> word 简历）
+由开发期 notebook 转换而来，
 逻辑与原 notebook 保持一致，仅做脚本化整理。
 
 本版本解决的问题：
@@ -35,7 +35,7 @@
     同一批图片重复导出时无需重新识别。
 
 用法（GUI 模式，与原 notebook 一致）：
-    python 简历转换工具-解决附件图片后缀重复问题.py
+    python resume_converter.py
 """
 from openpyxl import load_workbook
 from docxtpl import InlineImage
@@ -484,7 +484,7 @@ if __name__ == '__main__':
             if values.get('-mode-direct-'):
                 # 直接模式：仅凭原始数据表内置映射生成，无需模板/配置表
                 from importlib import import_module
-                dmod = import_module('简历转换工具-直接生成版')
+                dmod = import_module('resume_direct')
                 dmod.start_thread_direct(values['-XLSX-'], num1, num2,
                                          imagepath, docxpath, orient)
             else:

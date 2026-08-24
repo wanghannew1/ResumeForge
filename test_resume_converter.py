@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-「简历转换工具-解决附件图片后缀重复问题.py」的无界面自动化测试。
+「resume_converter.py」的无界面自动化测试。
 
 不启动 PySimpleGUI，直接调用核心函数 xlsx2docx_resume_converter：
   0) 图片方向自动摆正专项：
@@ -12,7 +12,7 @@
   2) 开启 auto_orient 跑全量（7份简历），校验 docx 可打开、内嵌图片数正确
   3) 缓存命中复跑，验证第二次导出无需重新识别
 
-运行：python 测试-简历转换工具.py
+运行：python test_resume_converter.py
 """
 import os
 import sys
@@ -32,8 +32,8 @@ sys.path.insert(0, BASE)
 
 # 导入被测模块（GUI 在 __main__ 保护下，导入安全）
 from importlib import import_module
-mod = import_module('简历转换工具-解决附件图片后缀重复问题')
-dmod = import_module('简历转换工具-直接生成版')
+mod = import_module('resume_converter')
+dmod = import_module('resume_direct')
 
 DATA_DIR = path.join(BASE, '长春吉大附中实验学校证书0801')
 RESUME_XLSX = path.join(DATA_DIR, '长春吉大附中实验学校0801.xlsx')
