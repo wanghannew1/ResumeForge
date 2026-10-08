@@ -77,6 +77,7 @@ PROMISE_PARAS = [
 _main = import_module('resume_converter')
 find_files = _main.find_files
 make_upright = _main.make_upright
+_pic_cell_names = _main._pic_cell_names
 
 
 def _g(x):
@@ -280,9 +281,8 @@ def xlsx2docx_resume_direct(raw_xlsx, start_n, end_n, image_path, docx_path,
         row_df = data.iloc[[i]]
         pic_files = {}
         for col, max_n, _w, _h, _png in PIC_SPECS:
-            raw_names = _g(_col(data, col).iloc[i])
-            names = [n.replace('/', '-').replace(':', '-')
-                     for n in raw_names.split('\n') if n]
+            colname = _col(data, col).name
+            names = _pic_cell_names(data, colname, i)[:max_n]
             found = []
             for n in names[:max_n]:
                 hit = find_files(image_path, n)

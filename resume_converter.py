@@ -65,13 +65,19 @@ import numpy as np
 import cv2
 
 
-# 用于返回指定路径下特定文件的绝对路径，返回文件的文件名中须包含给定字符串
+# 用于返回指定路径下特定文件的绝对路径，返回文件的文件名中须包含给定字符串。
+# 两遍扫描：先整体做大小写敏感匹配（保持旧数据集行为不变），全部不中再做
+# 忽略大小写回退——问卷记录 .JPG 而实际下载文件为 .jpg 之类只差大小写的情况
+# （实测第26行 4 张图片即此类），仍然精确、不做昵称类猜测以免插错图。
 def find_files(path, pattern):
+    fallback = None
     for root, dirs, files in os.walk(path):
         for name in files:
             if pattern in name:
                 return os.path.join(root, name)
-    return None
+            if fallback is None and pattern.lower() in name.lower():
+                fallback = os.path.join(root, name)
+    return fallback
 
 
 # 配置表列名与数据表列名可能差一个“（必填）”后缀（例如配置写
@@ -86,6 +92,25 @@ def _resolve_col(df, colname):
             if core in str(c):
                 return c
     raise KeyError(f'数据表缺少列：{colname}')
+
+
+# 收集某图片列第 i 行的全部文件名。
+# 问卷导出把同一题的多个上传文件横向铺到“命名列 + 其右侧连续的
+# Unnamed: 续列”（每列一个文件名），旧数据集则把多个文件名写在同一个
+# 单元格内用换行分隔——两种格式在此统一：自命名列向右扫描至下一个
+# 命名列为止，每格再按换行拆分；并把 excel 记录的文件名中的 / 与 :
+# 清理为 -（实际下载文件名是 - 分隔，find_files 按子串匹配依赖此转换）。
+def _pic_cell_names(data, colname, i):
+    cols = list(data.columns)
+    start = cols.index(colname)
+    names = []
+    j = start
+    while j < len(cols) and (j == start or str(cols[j]).startswith('Unnamed')):
+        v = data[cols[j]].iloc[i]
+        if not pd.isna(v):
+            names += [p for p in str(v).split('\n') if p]
+        j += 1
+    return [n.replace('/', '-').replace(':', '-') for n in names]
 
 
 # ==================== 图片方向自动识别（新增） ====================
@@ -334,17 +359,13 @@ def xlsx2docx_resume_converter(resume_table, word_template, start_n, end_n, imag
             # 新建模板标签空数组
             # jinja2_tag = []
             # 简历大表中存储地址的数组
-            picnames = g(data[f"{colname}"][i])
+            # 问卷导出把同一题的多个上传文件横向铺到“命名列+右侧Unnamed
+            # 续列”，旧数据集则是单格内换行分隔——_pic_cell_names 统一收集
+            # （含 / : 清理），详见该函数注释
+            pathlist = _pic_cell_names(data, colname, i)
             # 该列没有上传图片：跳过不插入（模板标签留空即可）
-            if not picnames:
+            if not pathlist:
                 continue
-            # 将excel中的收集结果-Sunday🇨🇳-第26题-2023/05/05 16:56:20.jpeg
-            #       转为 收集结果-Sunday🇨🇳-第26题-2023-05-05 16-56-20.jpeg
-            picnames = picnames.replace('/', '-')
-            picnames = picnames.replace(':', '-')
-            print(picnames)
-            # 将换行分隔的多个文件名转为数组，像身份证正反面，学历学位证书是多个文界面写在同一个单元格中，需要进行分列处理
-            pathlist = [p for p in picnames.split('\n') if p]
             print(pathlist)
             # c_cfg_pic为配置表行数
             for k in range(c_cfg_pic-2):
