@@ -55,6 +55,7 @@ import PySimpleGUI as sg
 import logging
 import logging.config
 import threading
+import traceback
 import asyncio
 import aiohttp
 from pathlib import Path
@@ -71,6 +72,20 @@ def find_files(path, pattern):
             if pattern in name:
                 return os.path.join(root, name)
     return None
+
+
+# 配置表列名与数据表列名可能差一个“（必填）”后缀（例如配置写
+# “硕士毕业学校（必填）”，数据表实际列名是“硕士毕业学校”）。
+# 取列时先精确匹配，再剥离后缀做包含匹配，匹配不到才报错。
+def _resolve_col(df, colname):
+    if colname in df.columns:
+        return colname
+    core = str(colname).replace('（必填）', '')
+    if core:
+        for c in df.columns:
+            if core in str(c):
+                return c
+    raise KeyError(f'数据表缺少列：{colname}')
 
 
 # ==================== 图片方向自动识别（新增） ====================
@@ -298,14 +313,15 @@ def xlsx2docx_resume_converter(resume_table, word_template, start_n, end_n, imag
         context = {}
         for j in range(n_cfg_str):
             key1 = cfg_str.iloc[:,j].iloc[0]
-            colname = cfg_str.iloc[:,j].name
+            colname = _resolve_col(data, cfg_str.iloc[:,j].name)
             value1 = g(data[colname][i])
             context[key1] = value1
             logging.info(f"简历表文字内容：{key1} {colname} {value1}")
         for j in range(n_cfg_date):
             key2 = cfg_date.iloc[:,j].iloc[0]
-            colname = cfg_date.iloc[:,j].name
-            value2 = g(data[colname][i].split()[0])#strftime("%Y年%m月%d日"))
+            colname = _resolve_col(data, cfg_date.iloc[:,j].name)
+            raw2 = g(data[colname][i])
+            value2 = raw2.split()[0] if raw2 else ''
             context[key2] = value2
             logging.info(f"简历表日期：{key2} {colname} {value2}")
         for j in range(n_cfg_pic):
@@ -314,18 +330,21 @@ def xlsx2docx_resume_converter(resume_table, word_template, start_n, end_n, imag
             # 前两行是图片长度和宽度px值
             key_w = series_t.iloc[0]
             key_h = series_t.iloc[1]
-            colname = series_t.name
+            colname = _resolve_col(data, series_t.name)
             # 新建模板标签空数组
             # jinja2_tag = []
             # 简历大表中存储地址的数组
-            picnames = data[f"{colname}"][i]
+            picnames = g(data[f"{colname}"][i])
+            # 该列没有上传图片：跳过不插入（模板标签留空即可）
+            if not picnames:
+                continue
             # 将excel中的收集结果-Sunday🇨🇳-第26题-2023/05/05 16:56:20.jpeg
             #       转为 收集结果-Sunday🇨🇳-第26题-2023-05-05 16-56-20.jpeg
             picnames = picnames.replace('/', '-')
             picnames = picnames.replace(':', '-')
             print(picnames)
             # 将换行分隔的多个文件名转为数组，像身份证正反面，学历学位证书是多个文界面写在同一个单元格中，需要进行分列处理
-            pathlist = picnames.split('\n')
+            pathlist = [p for p in picnames.split('\n') if p]
             print(pathlist)
             # c_cfg_pic为配置表行数
             for k in range(c_cfg_pic-2):
@@ -372,10 +391,11 @@ def xlsx2docx_resume_converter(resume_table, word_template, start_n, end_n, imag
                             logging.info(f"简历表图片的tag标签名称和列名称：{keyn} {colname}")
 
         tpl.render(context)
-        j = data[cfg_str.iloc[:,0].name][i]
-        c = data[cfg_str.iloc[:,1].name][i]
-        n = data[cfg_str.iloc[:,2].name][i]
-        t = data[cfg_date.iloc[:,0].name][i].split()[0]#strftime("%Y年%m月%d日")
+        j = g(data[_resolve_col(data, cfg_str.iloc[:,0].name)][i])
+        c = g(data[_resolve_col(data, cfg_str.iloc[:,1].name)][i])
+        n = g(data[_resolve_col(data, cfg_str.iloc[:,2].name)][i])
+        raw_t = g(data[_resolve_col(data, cfg_date.iloc[:,0].name)][i])
+        t = raw_t.split()[0] if raw_t else ''
         docx_filename = f'{j}_第{i+2}行_{c}_{n}_{t}.docx'
         #docx_filename = '简历'+str(i+1)+'_'+j+c+n+t+'.docx'
         s2 = path.join(docx_path, docx_filename)
@@ -386,12 +406,25 @@ def xlsx2docx_resume_converter(resume_table, word_template, start_n, end_n, imag
     run_time = end_time - start_time    # 程序的运行时间，单位为秒
     print(f"{time.strftime('%X')}导出结束，共导出{total}份简历，用时{round(run_time,2)}秒")
 
+def _run_guarded(func, *args, **kwargs):
+    """子线程入口：把异常完整打印到 stdout（GUI 消息框可见），
+    避免 pythonw 下 stderr 被丢弃、线程静默死亡看起来像“卡死”。"""
+    try:
+        func(*args, **kwargs)
+    except Exception:
+        print('转换过程中出现异常，已中止：')
+        print(traceback.format_exc())
+
+
 # def start_thread(resume_table, word_template, default_pic, image_path, cfg_table, docx_path):
 def start_thread(resume_table, word_template, start_n, end_n, image_path, cfg_table, docx_path, log_path, auto_orient=True):
     #print('开始执行')
-    # 让格式转换函数在子线程中运行
-    #thread = threading.Thread(target=xlsx2docx_resume_converter, args=(resume_table, word_template, default_pic, image_path, cfg_table, docx_path))
-    thread = threading.Thread(target=xlsx2docx_resume_converter, args=(resume_table, word_template, start_n, end_n, image_path, cfg_table, docx_path, log_path, auto_orient))
+    # 让格式转换函数在子线程中运行（异常打印到消息框，而不是静默丢弃）
+    thread = threading.Thread(
+        target=_run_guarded,
+        args=(xlsx2docx_resume_converter, resume_table, word_template,
+              start_n, end_n, image_path, cfg_table, docx_path, log_path,
+              auto_orient))
     # 下面是设置守护线程：如果在程序中将子线程设置为守护线程，则该子线程会在主线程结束时自动退出
     thread.setDaemon(True)
     thread.start()  # 启动线程

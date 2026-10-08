@@ -14,6 +14,7 @@ import logging
 import os
 import threading
 import time
+import traceback
 from importlib import import_module
 from os import path
 
@@ -308,10 +309,20 @@ def xlsx2docx_resume_direct(raw_xlsx, start_n, end_n, image_path, docx_path,
           f"用时{round(time.time() - start_time, 2)}秒")
 
 
+def _run_guarded(func, *args, **kwargs):
+    """子线程入口：异常完整打印到 stdout，避免 pythonw 下静默死亡。"""
+    try:
+        func(*args, **kwargs)
+    except Exception:
+        print('转换过程中出现异常，已中止：')
+        print(traceback.format_exc())
+
+
 def start_thread_direct(raw_xlsx, start_n, end_n, image_path, docx_path,
                         auto_orient=True):
     thread = threading.Thread(
-        target=xlsx2docx_resume_direct,
-        args=(raw_xlsx, start_n, end_n, image_path, docx_path, auto_orient))
+        target=_run_guarded,
+        args=(xlsx2docx_resume_direct, raw_xlsx, start_n, end_n,
+              image_path, docx_path, auto_orient))
     thread.setDaemon(True)
     thread.start()
